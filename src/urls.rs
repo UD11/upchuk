@@ -20,13 +20,18 @@ pub enum FileMode {
     Write,
 }
 
+/// Returns the file path and file handle based on the given mode.
+/// Ensures that the config directory exists. If reading and file doesn't exist,
+/// it creates an empty file.
 pub fn get_url_file(mode: FileMode) -> (PathBuf, File) {
     let mut path = config_dir().expect("Unable to find .config directory");
-    path.push("upchuk");
+    path.push("upchuk"); // Create a subdirectory for this app
 
+    // Ensure the upchuk directory exists
     std::fs::create_dir_all(&path).expect("Failed to create config directory");
-    path.push("upchuk_urls.json");
+    path.push("upchuk_urls.json"); // Define the filename
 
+    // Open the file in either read or append mode
     let url_file = match mode {
         FileMode::Write => OpenOptions::new().create(true).append(true).open(&path),
         FileMode::Read => {
@@ -42,6 +47,8 @@ pub fn get_url_file(mode: FileMode) -> (PathBuf, File) {
     (path, url_file)
 }
 
+/// Adds a new URL entry with an optional tag to the file.
+/// Automatically sets the current date.
 pub fn add_urls(url: &str, tag: Option<&str>) {
     if url.is_empty() {
         return;
@@ -60,6 +67,8 @@ pub fn add_urls(url: &str, tag: Option<&str>) {
     writeln!(url_file, "{}", json_line).expect("Failed to add url");
 }
 
+/// Reads all URL entries from the file and returns them as a vector.
+/// Skips invalid JSON entries with a warning.
 pub fn get_urls() -> Vec<UrlType> {
     let (_, url_file) = get_url_file(FileMode::Read);
     let reader = BufReader::new(url_file);
@@ -69,11 +78,12 @@ pub fn get_urls() -> Vec<UrlType> {
     for line in reader.lines() {
         let line = line.expect("Failed to read line");
 
+        // Try to deserialize each JSON line into UrlType
         let entry: UrlType = match serde_json::from_str(&line) {
             Ok(e) => e,
             Err(e) => {
                 println!("Failed to deserailes json entry: {}", e);
-                continue;
+                continue; // Skip invalid entrie
             }
         };
 
@@ -83,6 +93,7 @@ pub fn get_urls() -> Vec<UrlType> {
     url_list
 }
 
+/// Prints all URLs in a human-readable format with tag and date.
 pub fn print_all_urls() {
     let urls = get_urls();
 
@@ -101,6 +112,8 @@ pub fn print_all_urls() {
     }
 }
 
+/// Iterates over all URLs and performs a GET request to check if they're reachable.
+/// Prints success or failure for each URL independently.
 pub fn check_all_urls() {
     let urls = get_urls();
 
@@ -121,6 +134,6 @@ pub fn check_all_urls() {
             }
         };
 
-        // println!("{}", body);
+        // println!("{}", body); // Placeholder: remove or use if needed
     }
 }
