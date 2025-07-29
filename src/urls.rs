@@ -29,7 +29,13 @@ pub fn get_url_file(mode: FileMode) -> (PathBuf, File) {
 
     let url_file = match mode {
         FileMode::Write => OpenOptions::new().create(true).append(true).open(&path),
-        FileMode::Read => OpenOptions::new().read(true).open(&path),
+        FileMode::Read => {
+            if !path.exists() {
+                println!("No urls found, Please add urls before checking");
+                File::create(&path).expect("Failed to create empty urls json file");
+            }
+            OpenOptions::new().read(true).open(&path)
+        }
     }
     .expect("Failed to open file");
 
@@ -80,6 +86,11 @@ pub fn get_urls() -> Vec<UrlType> {
 pub fn print_all_urls() {
     let urls = get_urls();
 
+    if urls.is_empty() {
+        println!("No urls found");
+        return;
+    }
+
     for url in urls {
         println!("URL: {}", url.url);
         if let Some(tag) = url.tag.as_deref() {
@@ -87,5 +98,29 @@ pub fn print_all_urls() {
         }
         println!("Date: {}", url.date);
         println!("---");
+    }
+}
+
+pub fn check_all_urls() {
+    let urls = get_urls();
+
+    if urls.is_empty() {
+        println!("No urls found, add urls before checking");
+        return;
+    }
+
+    for url in urls {
+        match reqwest::blocking::get(&url.url) {
+            Ok(response) => match response.text() {
+                Ok(_e) => println!("{}\n", url.url),
+                Err(e) => eprintln!("Failed to read body for {}: {}\n", url.url, e),
+            },
+
+            Err(e) => {
+                print!("failed to get {:#?}: {}\n", &url.url, e);
+            }
+        };
+
+        // println!("{}", body);
     }
 }

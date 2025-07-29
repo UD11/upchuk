@@ -2,7 +2,7 @@ use clap::Parser;
 
 use crate::{
     args::Commands,
-    urls::{add_urls, print_all_urls},
+    urls::{add_urls, check_all_urls, print_all_urls},
 };
 
 mod args;
@@ -16,7 +16,7 @@ fn main() {
             add_urls(&url, tag.as_deref());
         }
 
-        Commands::Check => println!("check"),
+        Commands::Check => check_all_urls(),
         Commands::List => print_all_urls(),
     }
 }
