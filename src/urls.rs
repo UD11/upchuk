@@ -67,16 +67,16 @@ pub fn add_urls(url: &str, tag: Option<&str>) {
     writeln!(url_file, "{}", json_line).expect("Failed to add url");
 }
 
-/// Reads all URL entries from the file and returns them as a vector.
+/// Reads all URL entries from the file and returns them as a result.
 /// Skips invalid JSON entries with a warning.
-pub fn get_urls() -> Vec<UrlType> {
+pub fn get_urls() -> Result<Vec<UrlType>, Box<dyn std::error::Error>> {
     let (_, url_file) = get_url_file(FileMode::Read);
     let reader = BufReader::new(url_file);
 
     let mut url_list: Vec<UrlType> = Vec::new();
 
     for line in reader.lines() {
-        let line = line.expect("Failed to read line");
+        let line = line?;
 
         // Try to deserialize each JSON line into UrlType
         let entry: UrlType = match serde_json::from_str(&line) {
@@ -90,12 +90,18 @@ pub fn get_urls() -> Vec<UrlType> {
         url_list.push(entry);
     }
 
-    url_list
+    Ok(url_list)
 }
 
 /// Prints all URLs in a human-readable format with tag and date.
 pub fn print_all_urls() {
-    let urls = get_urls();
+    let urls = match get_urls() {
+        Ok(urls) => urls,
+        Err(e) => {
+            println!("Error loading urls: {}", e);
+            return;
+        }
+    };
 
     if urls.is_empty() {
         println!("No urls found");
@@ -115,7 +121,13 @@ pub fn print_all_urls() {
 /// Iterates over all URLs and performs a GET request to check if they're reachable.
 /// Prints success or failure for each URL independently.
 pub fn check_all_urls() {
-    let urls = get_urls();
+    let urls = match get_urls() {
+        Ok(urls) => urls,
+        Err(e) => {
+            println!("Error loading urls: {}", e);
+            return;
+        }
+    };
 
     if urls.is_empty() {
         println!("No urls found, add urls before checking");
@@ -133,7 +145,5 @@ pub fn check_all_urls() {
                 print!("failed to get {:#?}: {}\n", &url.url, e);
             }
         };
-
-        // println!("{}", body); // Placeholder: remove or use if needed
     }
 }
