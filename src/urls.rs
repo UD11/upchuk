@@ -54,11 +54,11 @@ pub fn add_urls(url: &str, tag: Option<&str>) {
     writeln!(url_file, "{}", json_line).expect("Failed to add url");
 }
 
-// pub fn get_urls() {}
-
-pub fn print_all_urls() {
+pub fn get_urls() -> Vec<UrlType> {
     let (_, url_file) = get_url_file(FileMode::Read);
     let reader = BufReader::new(url_file);
+
+    let mut url_list: Vec<UrlType> = Vec::new();
 
     for line in reader.lines() {
         let line = line.expect("Failed to read line");
@@ -71,11 +71,21 @@ pub fn print_all_urls() {
             }
         };
 
-        println!("URL: {}", entry.url);
-        if let Some(tag) = entry.tag.as_deref() {
+        url_list.push(entry);
+    }
+
+    url_list
+}
+
+pub fn print_all_urls() {
+    let urls = get_urls();
+
+    for url in urls {
+        println!("URL: {}", url.url);
+        if let Some(tag) = url.tag.as_deref() {
             println!("Tag: {}", tag);
         }
-        println!("Date: {}", entry.date);
+        println!("Date: {}", url.date);
         println!("---");
     }
 }
