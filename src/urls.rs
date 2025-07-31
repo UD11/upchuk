@@ -1,6 +1,7 @@
 use chrono::Local;
 use dirs_next::config_dir;
 use std::{
+    error::Error,
     fs::{File, OpenOptions},
     io::{BufRead, BufReader, Write},
     path::PathBuf,
@@ -23,13 +24,13 @@ pub enum FileMode {
 /// Returns the file path and file handle based on the given mode.
 /// Ensures that the config directory exists. If reading and file doesn't exist,
 /// it creates an empty file.
-pub fn get_url_file(mode: FileMode) -> (PathBuf, File) {
-    let mut path = config_dir().expect("Unable to find .config directory");
+pub fn get_url_file(mode: FileMode) -> Result<(PathBuf, File), Box<dyn Error>> {
+    let mut path = config_dir().ok_or("could not find config directory")?;
     path.push("upchuk"); // Create a subdirectory for this app
 
     // Ensure the upchuk directory exists
-    std::fs::create_dir_all(&path).expect("Failed to create config directory");
-    path.push("upchuk_urls.json"); // Define the filename
+    std::fs::create_dir_all(&path)?;
+    path.push("upchuk_urls.json");
 
     // Open the file in either read or append mode
     let url_file = match mode {
@@ -41,17 +42,16 @@ pub fn get_url_file(mode: FileMode) -> (PathBuf, File) {
             }
             OpenOptions::new().read(true).open(&path)
         }
-    }
-    .expect("Failed to open file");
+    }?;
 
-    (path, url_file)
+    Ok((path, url_file))
 }
 
 /// Adds a new URL entry with an optional tag to the file.
 /// Automatically sets the current date.
-pub fn add_urls(url: &str, tag: Option<&str>) {
+pub fn add_urls(url: &str, tag: Option<&str>) -> Result<(), Box<dyn Error>> {
     if url.is_empty() {
-        return;
+        return Ok(());
     }
 
     let url_entry = UrlType {
@@ -60,17 +60,19 @@ pub fn add_urls(url: &str, tag: Option<&str>) {
         date: Local::now().format("%Y-%m-%d").to_string(),
     };
 
-    let (_, mut url_file) = get_url_file(FileMode::Write);
+    let (_, mut url_file) = get_url_file(FileMode::Write)?;
 
-    let json_line = serde_json::to_string(&url_entry).expect("Failed to serialze  url");
+    let json_line = serde_json::to_string(&url_entry)?;
 
-    writeln!(url_file, "{}", json_line).expect("Failed to add url");
+    writeln!(url_file, "{}", json_line)?;
+
+    Ok(())
 }
 
 /// Reads all URL entries from the file and returns them as a result.
 /// Skips invalid JSON entries with a warning.
-pub fn get_urls() -> Result<Vec<UrlType>, Box<dyn std::error::Error>> {
-    let (_, url_file) = get_url_file(FileMode::Read);
+pub fn get_urls() -> Result<Vec<UrlType>, Box<dyn Error>> {
+    let (_, url_file) = get_url_file(FileMode::Read)?;
     let reader = BufReader::new(url_file);
 
     let mut url_list: Vec<UrlType> = Vec::new();
@@ -94,18 +96,12 @@ pub fn get_urls() -> Result<Vec<UrlType>, Box<dyn std::error::Error>> {
 }
 
 /// Prints all URLs in a human-readable format with tag and date.
-pub fn print_all_urls() {
-    let urls = match get_urls() {
-        Ok(urls) => urls,
-        Err(e) => {
-            println!("Error loading urls: {}", e);
-            return;
-        }
-    };
+pub fn print_all_urls() -> Result<(), Box<dyn Error>> {
+    let urls = get_urls()?;
 
     if urls.is_empty() {
         println!("No urls found");
-        return;
+        return Ok(());
     }
 
     for url in urls {
@@ -116,22 +112,24 @@ pub fn print_all_urls() {
         println!("Date: {}", url.date);
         println!("---");
     }
+
+    Ok(())
 }
 
 /// Iterates over all URLs and performs a GET request to check if they're reachable.
 /// Prints success or failure for each URL independently.
-pub fn check_all_urls() {
+pub fn check_all_urls() -> Result<(), Box<dyn Error>> {
     let urls = match get_urls() {
         Ok(urls) => urls,
         Err(e) => {
             println!("Error loading urls: {}", e);
-            return;
+            return Ok(());
         }
     };
 
     if urls.is_empty() {
         println!("No urls found, add urls before checking");
-        return;
+        return Ok(());
     }
 
     for url in urls {
@@ -146,4 +144,6 @@ pub fn check_all_urls() {
             }
         };
     }
+
+    Ok(())
 }
