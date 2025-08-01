@@ -3,7 +3,7 @@ use dirs_next::config_dir;
 use std::{
     error::Error,
     fs::{File, OpenOptions},
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader, Write, stdout},
     path::PathBuf,
 };
 
@@ -38,7 +38,7 @@ pub fn get_url_file(mode: FileMode) -> Result<(PathBuf, File), Box<dyn Error>> {
         FileMode::Read => {
             if !path.exists() {
                 println!("No urls found, Please add urls before checking");
-                File::create(&path).expect("Failed to create empty urls json file");
+                File::create(&path)?;
             }
             OpenOptions::new().read(true).open(&path)
         }
@@ -133,16 +133,20 @@ pub fn check_all_urls() -> Result<(), Box<dyn Error>> {
     }
 
     for url in urls {
-        match reqwest::blocking::get(&url.url) {
-            Ok(response) => match response.text() {
-                Ok(_e) => println!("{}\n", url.url),
-                Err(e) => eprintln!("Failed to read body for {}: {}\n", url.url, e),
-            },
+        print!("[…] {:30} ⏳ Checking... ", url.url);
+        stdout().flush().unwrap();
 
-            Err(e) => {
-                print!("failed to get {:#?}: {}\n", &url.url, e);
+        let start = std::time::Instant::now();
+
+        match reqwest::blocking::get(&url.url) {
+            Ok(resp) => {
+                let duration = start.elapsed().as_millis();
+                println!("\r[✓] {:30} ✔ {} in {}ms", url.url, resp.status(), duration);
             }
-        };
+            Err(e) => {
+                println!("\r[✗] {:30} ✖ Failed: {}", url.url, e.to_string());
+            }
+        }
     }
 
     Ok(())
