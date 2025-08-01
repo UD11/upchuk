@@ -3,10 +3,17 @@ name = "upchuk"
 version = "0.1.0"
 edition = "2024"
 
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "z"
+strip = "symbols"
+
+
 [dependencies]
 chrono = "0.4.41"
-clap = {version = "^4", features = ["derive"]}
+clap = { version = "^4", features = ["derive"] }
 dirs-next = "2.0.0"
-reqwest = {version = "0.12.22", features =["blocking"]}
-serde = {version = "1.0.219", features = ["derive"]}
+reqwest = { version = "0.12.22", features = ["blocking"] }
+serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.141"

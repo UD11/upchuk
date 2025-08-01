@@ -1,8 +1,9 @@
 use chrono::Local;
 use dirs_next::config_dir;
 use std::{
+    error::Error,
     fs::{File, OpenOptions},
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader, Write, stdout},
     path::PathBuf,
 };
 
@@ -20,25 +21,37 @@ pub enum FileMode {
     Write,
 }
 
-pub fn get_url_file(mode: FileMode) -> (PathBuf, File) {
-    let mut path = config_dir().expect("Unable to find .config directory");
-    path.push("upchuk");
+/// Returns the file path and file handle based on the given mode.
+/// Ensures that the config directory exists. If reading and file doesn't exist,
+/// it creates an empty file.
+pub fn get_url_file(mode: FileMode) -> Result<(PathBuf, File), Box<dyn Error>> {
+    let mut path = config_dir().ok_or("could not find config directory")?;
+    path.push("upchuk"); // Create a subdirectory for this app
 
-    std::fs::create_dir_all(&path).expect("Failed to create config directory");
+    // Ensure the upchuk directory exists
+    std::fs::create_dir_all(&path)?;
     path.push("upchuk_urls.json");
 
+    // Open the file in either read or append mode
     let url_file = match mode {
         FileMode::Write => OpenOptions::new().create(true).append(true).open(&path),
-        FileMode::Read => OpenOptions::new().read(true).open(&path),
-    }
-    .expect("Failed to open file");
+        FileMode::Read => {
+            if !path.exists() {
+                println!("No urls found, Please add urls before checking");
+                File::create(&path)?;
+            }
+            OpenOptions::new().read(true).open(&path)
+        }
+    }?;
 
-    (path, url_file)
+    Ok((path, url_file))
 }
 
-pub fn add_urls(url: &str, tag: Option<&str>) {
+/// Adds a new URL entry with an optional tag to the file.
+/// Automatically sets the current date.
+pub fn add_urls(url: &str, tag: Option<&str>) -> Result<(), Box<dyn Error>> {
     if url.is_empty() {
-        return;
+        return Ok(());
     }
 
     let url_entry = UrlType {
@@ -47,38 +60,49 @@ pub fn add_urls(url: &str, tag: Option<&str>) {
         date: Local::now().format("%Y-%m-%d").to_string(),
     };
 
-    let (_, mut url_file) = get_url_file(FileMode::Write);
+    let (_, mut url_file) = get_url_file(FileMode::Write)?;
 
-    let json_line = serde_json::to_string(&url_entry).expect("Failed to serialze  url");
+    let json_line = serde_json::to_string(&url_entry)?;
 
-    writeln!(url_file, "{}", json_line).expect("Failed to add url");
+    writeln!(url_file, "{}", json_line)?;
+
+    Ok(())
 }
 
-pub fn get_urls() -> Vec<UrlType> {
-    let (_, url_file) = get_url_file(FileMode::Read);
+/// Reads all URL entries from the file and returns them as a result.
+/// Skips invalid JSON entries with a warning.
+pub fn get_urls() -> Result<Vec<UrlType>, Box<dyn Error>> {
+    let (_, url_file) = get_url_file(FileMode::Read)?;
     let reader = BufReader::new(url_file);
 
     let mut url_list: Vec<UrlType> = Vec::new();
 
     for line in reader.lines() {
-        let line = line.expect("Failed to read line");
+        let line = line?;
 
+        // Try to deserialize each JSON line into UrlType
         let entry: UrlType = match serde_json::from_str(&line) {
             Ok(e) => e,
             Err(e) => {
                 println!("Failed to deserailes json entry: {}", e);
-                continue;
+                continue; // Skip invalid entrie
             }
         };
 
         url_list.push(entry);
     }
 
-    url_list
+    Ok(url_list)
 }
 
-pub fn print_all_urls() {
-    let urls = get_urls();
+/// Prints all URLs in a human-readable format with tag and date.
+pub fn print_all_urls() -> Result<(), Box<dyn Error>> {
+    let urls = get_urls()?;
+
+    if urls.is_empty() {
+        println!("No urls found");
+        return Ok(());
+    }
 
     for url in urls {
         println!("URL: {}", url.url);
@@ -88,4 +112,42 @@ pub fn print_all_urls() {
         println!("Date: {}", url.date);
         println!("---");
     }
+
+    Ok(())
+}
+
+/// Iterates over all URLs and performs a GET request to check if they're reachable.
+/// Prints success or failure for each URL independently.
+pub fn check_all_urls() -> Result<(), Box<dyn Error>> {
+    let urls = match get_urls() {
+        Ok(urls) => urls,
+        Err(e) => {
+            println!("Error loading urls: {}", e);
+            return Ok(());
+        }
+    };
+
+    if urls.is_empty() {
+        println!("No urls found, add urls before checking");
+        return Ok(());
+    }
+
+    for url in urls {
+        print!("[…] {:30} ⏳ Checking... ", url.url);
+        stdout().flush().unwrap();
+
+        let start = std::time::Instant::now();
+
+        match reqwest::blocking::get(&url.url) {
+            Ok(resp) => {
+                let duration = start.elapsed().as_millis();
+                println!("\r[✓] {:30} ✔ {} in {}ms", url.url, resp.status(), duration);
+            }
+            Err(e) => {
+                println!("\r[✗] {:30} ✖ Failed: {}", url.url, e.to_string());
+            }
+        }
+    }
+
+    Ok(())
 }
