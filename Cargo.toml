@@ -1,7 +1,15 @@
 [package]
 name = "upchuk"
 version = "0.1.0"
+authors = ["Your uddalak sealuddalak84@gmail.com"]
 edition = "2024"
+
+description = "A CLI tool to manage and check URLs"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/UD11/upchuk"
+homepage = "https://github.com/UD11/upchuk"
+documentation = "https://github.com/UD11/upchuk"
+
 
 [profile.release]
 lto = true
