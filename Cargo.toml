@@ -1,7 +1,7 @@
 [package]
 name = "upchuk"
 version = "0.1.0"
-authors = ["Your uddalak sealuddalak84@gmail.com"]
+authors = ["uddalak sealuddalak84@gmail.com"]
 edition = "2024"
 
 description = "A CLI tool to manage and check URLs"
