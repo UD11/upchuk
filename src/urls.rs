@@ -54,6 +54,16 @@ pub fn add_urls(url: &str, tag: Option<&str>) -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
+    if is_url_present(url)? {
+        eprintln!("url is already present");
+        return Ok(());
+    }
+
+    if tag.map(|t| t.contains(' ')).is_some() {
+        eprintln!("tag cannot contain space");
+        return Ok(());
+    }
+
     let url_entry = UrlType {
         url: url.trim().to_string(),
         tag: tag.map(|t| t.trim().to_string()),
@@ -150,4 +160,18 @@ pub fn check_all_urls() -> Result<(), Box<dyn Error>> {
     }
 
     Ok(())
+}
+
+fn is_url_present(target_url: &str) -> Result<bool, Box<dyn Error>> {
+    let urls = get_urls()?;
+
+    if urls.is_empty() {
+        return Ok(false);
+    }
+
+    if urls.iter().find(|url| url.url == target_url).is_some() {
+        return Ok(true);
+    }
+
+    Ok(false)
 }
